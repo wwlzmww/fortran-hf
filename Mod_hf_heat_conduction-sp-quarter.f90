@@ -1,9 +1,9 @@
 Module hf_heat_conduction
     use Hf_Geom                     !几何
-    use Card_group_9              !几何
-    use Rodtab,      only: nrrod  !rod number
-    use Heat_structs, only: rods !type
-    use unitf 
+    !use Card_group_9              !几何
+    !use Rodtab,      only: nrrod  !rod number
+    !use Heat_structs, only: rods !type
+    !use unitf 
     use HF_init      
     
     implicit none
@@ -226,6 +226,7 @@ contains
 
     end subroutine blk_Para
     
+    !!!! in,out:nodeCoordX,nodeCoordY
     subroutine node_Para(line1x,line1y,line2x,line2y,nodeCoordX,nodeCoordY,nodex,nodey)    
     
         implicit none
@@ -320,7 +321,7 @@ contains
                   !write(*,*) M,N,i,j,nodeCoordX(i,j),nodeCoordY(i,j)                            
              end do
         end do
-        
+  
         blk%neighb_n(:,:) = 0
         blk%neighb_s(:,:) = 0
         blk%neighb_w(:,:) = 0
@@ -456,7 +457,7 @@ contains
         call meshblock(blk2_2clad,nodeCoordX2_2clad,nodeCoordY2_2clad,N1,N3,meshN)
         call meshblock(blk3_2clad,nodeCoordX3_2clad,nodeCoordY3_2clad,N1,N4,meshN)
         call meshblock(blk4_2clad,nodeCoordX4_2clad,nodeCoordY4_2clad,N1,N5,meshN)        
-  
+        !!!! 交界处数值设定
         i = M
         do j = 1,N
             blk1_fuel%Ds2N(i,j) = ((blk1_fuel%c_x(i,j)-blk1_clad%c_x(1,j))**2+(blk1_fuel%c_y(i,j)-blk1_clad%c_y(1,j))**2)**0.5
@@ -568,22 +569,22 @@ contains
     
     subroutine solve_HF_heat_conduction
     
-        use Xtradat,         only:dt      !时间步长
-        use Timestep_mod,  only: Get_time_data  !时间信息
-        use Rodtab,          only: nrrod,nsrod    !棒数量
-        use powermod,        only: rodpowers      !功率
-        use FuelRod_type,  only: FuelRod        !自定义变量
-        use Rodtab,          only: pin_sc_conn  !棒与子通道的关系
-        use Spltdat,         only: flmesh         !流体网格
-        use Sol_dom,         only: ch              !子通道流体相关
-        use Unitf,            only: Psfrel2psia  !压力转换
-        use fluidprops,     only: liquid_props
-        use Solidprops,     only: Rcold          !密度
+        !use Xtradat,         only:dt      !时间步长
+        !use Timestep_mod,  only: Get_time_data  !时间信息
+        !use Rodtab,          only: nrrod,nsrod    !棒数量
+        !use powermod,        only: rodpowers      !功率
+        !use FuelRod_type,  only: FuelRod        !自定义变量
+        !use Rodtab,          only: pin_sc_conn  !棒与子通道的关系
+        !use Spltdat,         only: flmesh         !流体网格
+        !use Sol_dom,         only: ch              !子通道流体相关
+        !use Unitf,            only: Psfrel2psia  !压力转换
+        !use fluidprops,     only: liquid_props
+        !use Solidprops,     only: Rcold          !密度
         
         implicit none
         !局部变量
         type(HFcond), pointer :: HFrod
-        type(FuelRod), pointer :: rod        
+        !type(FuelRod), pointer :: rod        
         integer :: n,i,j,z,node,row,col,k
         integer :: zmax,kmax,chnum,isec
         integer :: M,Nfblk1
@@ -732,12 +733,12 @@ contains
         
         dt_heat = 1e8        
         !Time step
-        if (hf_c == 1) then
-            call Get_time_data(rtwfp=rtwfp)
-            dt_heat = rtwfp * dt / 3600. ! [h]
-                !当前时刻功率
-            call rodpowers
-        end if
+        !if (hf_c == 1) then
+        !    call Get_time_data(rtwfp=rtwfp)
+        !    dt_heat = rtwfp * dt / 3600. ! [h]
+        !        !当前时刻功率
+        !    call rodpowers
+        !end if
         
         write(*,*) "Start runing solve_HF_heat_conduction"
           !!! region 1
@@ -5698,7 +5699,7 @@ contains
     end subroutine get_coef_matrix
     
     subroutine get_HF_fuel_props(T,kc_fuel,cp_fuel)
-        use Solidprops,     only: material_props
+        !use Solidprops,     only: material_props
         implicit none
         real, intent(in) :: T
         real, intent(out) :: kc_fuel,cp_fuel
@@ -5714,7 +5715,7 @@ contains
      end subroutine get_HF_fuel_props 
      
     subroutine get_HF_clad_props(T,kc_clad,cp_clad)
-        use Solidprops,     only: material_props
+        !use Solidprops,     only: material_props
         implicit none
         real, intent(in) :: T
         real, intent(out) :: kc_clad,cp_clad
@@ -5828,9 +5829,9 @@ contains
     end subroutine equation_solution
     
     subroutine result_hf_conduction
-        use Timestep_mod,  only: Get_time_data
-        use iounits,          only: ihfout
-        use unitf
+        !use Timestep_mod,  only: Get_time_data
+        !use iounits,          only: ihfout
+        !use unitf
         implicit none
         type(HFcond), pointer :: HFrod
         integer :: n, i ,j, z, k
@@ -5850,7 +5851,7 @@ contains
             !ihfout = 10
             open(unit = ihfout,file = 'HF_heat_conduction-steady.out',form="formatted") 
         endif
-        call Get_time_data(t=timet)
+        !call Get_time_data(t=timet)
         
         allocate(average_temperature(zmax),average_q(zmax))
         allocate(num1(N2),num2(N3),num3(N4),num4(N5))
