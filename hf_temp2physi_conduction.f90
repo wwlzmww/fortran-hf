@@ -124,7 +124,6 @@ module temp2physi_conduction
             forall(j = 1 : 4)
             xreal(j,1) = node(ele(i,j+1),2)
             yreal(j,1) = node(ele(i,j+1),3)
-            tempk = 0.0
             end forall
             ele_k_stiffness = 0.0 !初始化单元刚度矩阵
 
