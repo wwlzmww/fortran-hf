@@ -8,9 +8,9 @@ module mathcal
         !定义数与向量的数乘
         real function multnV(a,V)
             implicit none
-            real, intent(in) :: a,V(:)
+            real, intent(in) :: a, V(:)
             real dimension(size(V)), intent(out) :: multnV 
-            forall(i = 1:size(V))
+            forall(i = 1 : size(V))
                 multnV(i) = a*V(i)
             end forall
             return
@@ -21,15 +21,13 @@ module mathcal
             implicit none
             real, intent(in) :: a,M(:,:)
             real dimension(size(M,1) , size(M,2)), intent(out) :: multnM 
-            forall(i = 1:size(M,1) , j = 1:size(M,2))
+            forall(i = 1 : size(M,1) , j = 1 : size(M,2))
                 multnM(i,j) = a*M(i,j)
             end forall
             return
         end
 
-
-
-
+end module mathcal
 
 module temp2physi_conduction
     use hf_heat_conduction
@@ -75,16 +73,19 @@ module temp2physi_conduction
         return
     end
 
-    real dimension(ele_row) :: Elmo
+    real dimension(ele_row) :: Elmo !ele_row表示单元总数
     real dimension(ele_row) :: poi
-    forall(i = 1:ele_uo2)
+    forall(i = 1 : ele_uo2)
     !编号1~ele_uo2表示材料为UO2的单元编号，ele_uo2~ele_row表示材料为zr的单元编号
         Elmo(i) = Elasticmo(ele_t(i,2),2)
-        Elmo(ele_row + 1 - i) = Elasticmo(ele_t(ele_row + 1 - i,2),1)
         poi(i) = poission(ele_t(i,2),2) 
-        poi(ele_row + 1 - i) = poission(ele_t(ele_row + 1 - i,2),1) 
     end forall
-    !只需要知道单元编号，对应结点坐标与关联单元，对应温度，结点即可，形式可以转换
+
+    forall(i = ele_uo2 + 1 : ele_row)
+        Elmo(i) = Elasticmo(ele_t(i,1),1)
+        poi(i) = poission(ele_t(i,1),1)
+    end forall
+    !只需要知道单元编号，对应结点坐标与关联单元，对应温度，结点即可，形式可以转换如下
     !现假设以获得的单元控制体的标号矩阵为ele,对应的温度为ele_t
     !ele的形式应该为:1 1 2 3 4
     !               2 1 2 5 6
@@ -94,13 +95,19 @@ module temp2physi_conduction
 
     real dimension(2*node_num,2*node_num) :: k_stiffness = 0 !定义整体刚度矩阵，node_num为结点总数
 
-    !进行刚度矩阵计算，采取四结点四边形计算
+    !进行刚度矩阵计算，采取四结点四边形有限元计算
     subroutine stiffness(E,nu,ele,node,type)
-    !E为弹性模量，nu为泊松比.node为结点编号以及坐标，第一列为结点编号，第二列为x坐标，第三列为y坐标，type为类型
+
+     !E为弹性模量，nu为泊松比.node为结点编号、坐标以及边界限制，第一列为结点编号，第二列为x坐标，第三列为y坐标
+     !第四列为x方向限制，第五列为y方向限制，取值为0表示固定，1表示自由
+     !node的形式应该为:1 0.01 0.01 0 0
+     !                2 0.03 0.03 1 1
+     !type为选择平面应力或平面应变的类型
+
         implicit none
         real, intent(in) :: E(:),nu(:),ele(:,:),node(:,:)
         integer, intent(out) ele_row = size(ele,1) !获取总单元数量
-        real dimension(8,8) :: ele_k_stiffness = 0 !单元刚度矩阵
+        real dimension(8,8) :: ele_k_stiffness !单元刚度矩阵
         real, parameter :: con = 1/sqrt(3) !定义样本需要的常数
         real dimension(4,1) :: xreal, yreal !储存单元的四个结点坐标
         real dimension(4,2) :: sample!样本矩阵
@@ -111,18 +118,18 @@ module temp2physi_conduction
         real :: a, b, c, d, coffA, J !过渡系数与雅各比行列式
         sample = reshape([con,con,-con,-con,con,-con,-con,con],[4,2])
 
-        do i = 1:ele_row
-
+        do i = 1 : ele_row
             !定义结点真实坐标，设单元结点编号左下为1，右下为2，右上为3，左上为4
-            !同时刚度矩阵积分采取高斯近似，选取正负根号3分之1的4个样本点，权重为1
-            forall(j = 1:4)
+            !同时刚度矩阵积分采取高斯积分近似，选取正负根号3分之1的4个样本点，权重为1
+            forall(j = 1 : 4)
             xreal(j,1) = node(ele(i,j+1),2)
             yreal(j,1) = node(ele(i,j+1),3)
             tempk = 0.0
             end forall
+            ele_k_stiffness = 0.0 !初始化单元刚度矩阵
 
-                !计算第i个单元的刚度矩阵
-            do j = 1:4
+            !计算第i个单元的刚度矩阵
+            do j = 1 : 4
                 temp = reshape([ -1+sample(j,1) , -1+sample(j,2) , -1-sample(j,1) ,  1-sample(j,2) ,&
                               &   1+sample(j,1) ,  1+sample(j,2) ,  1-sample(j,1) , -1-sample(j,2)],[2,4])
                 temp = multnM(0.25,temp)
@@ -175,12 +182,14 @@ module temp2physi_conduction
 
     !组装刚度矩阵的子程序
     subroutine assemblestiffness(k_stiffness,ele_k_stiffness,ele_num)
-    !k_stiffness为整体刚度矩阵，ele_k_stiffness为单元刚度矩阵, ele_num为对应单元编号
+
+     !k_stiffness为整体刚度矩阵，ele_k_stiffness为单元刚度矩阵, ele_num为对应单元编号
         integer, intent(in) :: ele_num(:)
-        real, intent(in) :: ele_k_stiffnesss(:,:,:)
-        real intent(in,out) :: k_stiffnesss(:,:)
-        integer :: disx,disy !代替坐标
-            do  i = 1:4
+        real, intent(in) :: ele_k_stiffnesss(:,:)
+        real, intent(in,out) :: k_stiffnesss(:,:)
+        integer :: disx, disy !代替坐标
+
+            do  i = 1 : 4
                 disx = 2*ele_num(i+1) - 1
                 disy = 2*ele_num(i+1)
                 do j = 0:7
@@ -190,15 +199,17 @@ module temp2physi_conduction
             end do
     end subroutine assemblestiffness
 
+    !创建结点载荷列向量的子程序
+    subroutine load()
+    end subroutine load
 
+    !创建结点位移列向量和边界条件的子程序
+    subroutine displacement()
+    end subroutine displacement
 
-
-
-
-
-
-
-
+    !求解子程序
+    subroutine solutionD()
+    end subroutine solution
 
 
 end module temp2physi_conduction
