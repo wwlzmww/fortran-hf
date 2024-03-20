@@ -27,6 +27,53 @@ module mathcal
         return
     end
 
+    !返回曲线侧的x与y方向分量,方向由对应点指向曲率圆心
+    real function cirlencom(p,x,y,cirx,cirx)
+        !p为需要转化的量的长度，x，y为对应点X,Y坐标，cirx,ciry为曲率圆心坐标
+        implicit none
+        real, intent(in) :: p, x, y, cirx, ciry
+        real dimension(2), intent(out) :: cirlencom !第一列表示x分量，第二列表示y分量
+        real :: radius
+            radius = sqrt( (cirx - x)**2 + (ciry - y)**2 )
+            cirlencom(1) = p * (cirx - x)/radius
+            cirlencom(2) = p * (ciry - y)/radius
+        return 
+    end
+
+    !删除矩阵对应第i行并拼接
+    real function revector(i,vector)
+        implicit none
+        integer, intent(in) :: i
+        real, intent(in) :: vector(:,:) 
+        integer :: row = size(vector,1), col = size(vector,2)
+        real dimension(row - 1,col), intent(out) :: revector
+
+            forall(j = 1 : i - 1 , k = 1 : col)
+                revector(j,k) = vector(j,k)
+            end forall
+
+            forall(j = 1 : row - i , k = 1 : col)
+                revector(i+j-1,k) = vector(i+j,k)
+            end forall
+        return
+    end
+
+    !删除矩阵对应第i行，第j列并拼接矩阵
+    real function remat(i,j,mat)
+        use revector
+        implicit none
+        integer, intent(in) :: i, j 
+        real, intent(in) :: mat(:,:) 
+        integer :: row = size(mat,1), col = size(mat,2)
+        real dimension(row - 1,col - 1), intent(out) :: remat
+            remat = revector(i,mat)
+            remat = transpose(revector(j,transpose(mat)))
+        return
+    end
+
+
+
+     
 end module mathcal
 
 module temp2physi_conduction
@@ -56,12 +103,12 @@ module temp2physi_conduction
             select case (type)
             !type = 1 ：Zr
             !type = 2 : UO2
-            case (1)
-                Elasticmo = 921 - 4.05e-2*T  
-            case (2)
-                Elasticmo = 233.4 - 2.5476e-2*T 
-            case default
-                write(*,*) "未定义材料"
+                case (1)
+                    Elasticmo = 921 - 4.05e-2*T  
+                case (2)
+                    Elasticmo = 233.4 - 2.5476e-2*T 
+                case default
+                    write(*,*) "未定义材料"
             end select 
         return
     end
@@ -75,14 +122,14 @@ module temp2physi_conduction
             select case (type)
             !type = 1 ：Zr
             !type = 2 : UO2
-            case (1)
-                G = 349 - 1.66e-2*T  !剪切模量，单位GPa
-                E = Elasticmo(T,1)
-                poission = E/2/G - 1
-            case (2)
-                poission = 0.328
-            case default
-                write(*,*) "未定义材料"
+                case (1)
+                    G = 349 - 1.66e-2*T  !剪切模量，单位GPa
+                    E = Elasticmo(T,1)
+                    poission = E/2/G - 1
+                case (2)
+                    poission = 0.328
+                case default
+                    write(*,*) "未定义材料"
             end select 
         return
     end
@@ -165,16 +212,16 @@ module temp2physi_conduction
                     select case(type)
                     !type = 1:平面应力
                     !type = 2:平面应变
-                    case(1)
-                        coffA = E(i)/(1-nu(i)**2)
-                        stressmatrix = reshape([1,nu(i),0,nu(i),1,0,0,0,(1-nu(i))/2],[3,3])
-                        stressmatrix = multnM(coffA,stressmatrix)
-                    case(2)
-                        coffA = E(i)/(1+nu(i))/(1-2*nu(i))
-                        stressmatrix = reshape([1-nu(i),nu(i),0,nu(i),1-nu(i),0,0,0,(1-2*nu(i))/2],[3,3])
-                        stressmatrix = multnM(coffA,stressmatrix)
-                    case default
-                        write(*,*) "unknown input"
+                        case(1)
+                            coffA = E(i)/(1-nu(i)**2)
+                            stressmatrix = reshape([1,nu(i),0,nu(i),1,0,0,0,(1-nu(i))/2],[3,3])
+                            stressmatrix = multnM(coffA,stressmatrix)
+                        case(2)
+                            coffA = E(i)/(1+nu(i))/(1-2*nu(i))
+                            stressmatrix = reshape([1-nu(i),nu(i),0,nu(i),1-nu(i),0,0,0,(1-2*nu(i))/2],[3,3])
+                            stressmatrix = multnM(coffA,stressmatrix)
+                        case default
+                            write(*,*) "unknown input"
                     end select
 
                     !利用了高斯积分近似，采取了四个样本点计算积分
@@ -210,23 +257,64 @@ module temp2physi_conduction
     end subroutine assemblestiffness
 
     !创建结点载荷列向量的子程序
-    subroutine load(node,force)
+    subroutine load(p,node,force,cir)
         implicit none
-        real, intent(in) :: node
-        real, intent(in,out) :: force
+        real, intent(in) :: node(:,:), cir(:,:), p !cir为曲率圆心坐标矩阵，p为外界恒定压力
+        real, intent(in,out) :: force(:,:)
         integer :: nodextype, nodeytype !定义结点x与y方向的边界类型
+        !十字螺旋1/4模型中，其实只有3个圆弧侧，2个对称的正曲率圆弧，1个负曲率圆弧，故cir()可以设为2×2矩阵
+        !cir(:,:) = [cirx1,ciry1] ——————负曲率圆弧的圆心坐标
+        !           [ mcir , 0  ] ——————圆心在x轴上的正曲率圆弧圆心坐标，圆心在y轴上的为[0, mcir]
         !对结点载荷进行赋值
         do i = 1 : node_num
             nodextype = node(i,4)
             nodeytype = node(i,5)
+            !nodetype = 0 : 方向固定，同时删去刚度矩阵对应第行与列、载荷和位移列向量的对应行
+            !nodetype = 1 : 方向自由，载荷列向量对应行设为0
+            !nodetype = 2 : 只受x方向载荷的结点类型
+            !nodetype = 3 : 只受y方向载荷的结点类型
+            !nodetype = 4 : 圆心在x轴上的正曲率圆周侧载荷的结点类型
+            !nodetype = 5 : 圆心在y轴上的正曲率圆周侧载荷的结点类型
+            !nodetype = 6 : 负曲率圆周侧载荷的结点类型
+
+            !判断x方向载荷类型
             select case(nodextype)
-            !nodextype = 0 : 限制x方向位移，同时删去刚度矩阵对应第2i-1行2i-1列、载荷和位移列向量的第2i-1行
-            !nodextype = 1 : x方向自由，对应载荷列向量第2i-1行设为0
-            !nodextype = 2 : 施加载荷
-            !nodextype = 3 : 圆周类载荷
-                case
-            !nodeytype = 1 : 限制y方向位移，同时删去刚度矩阵对应第2i行2i列、载荷和位移列向量的第2i行
-            !nodetype
+                case(0)
+                    k_stiffness = remat(2*i-1, 2*i-1, k_stiffness)
+                    force = revector(2*i-1, force)
+                case(1,3)
+                    force(2*i-1, 1) = 0
+                case(2)
+                    force(2*i-1, 1) = -p
+                case(4)
+                    force(2*i-1, 1) = cirlencom(p,node(i,2),node(i,3),cir(2,1),cir(2,2))(1)
+                case(5)
+                    force(2*i-1, 1) = cirlencom(p,node(i,2),node(i,3),cir(2,2),cir(2,1))(1)
+                case(6)
+                    force(2*i-1, 1) = cirlencom(-p,node(i,2),node(i,3),cir(1,1),cir(1,2))(1)
+                case default
+                    write(*,*) "未定义载荷类型"
+            end select 
+
+            !判断y方向载荷类型
+            select case(nodeytype)
+                case(0)
+                    k_stiffness = remat(2*i, 2*i, k_stiffness)
+                    force = revector(2*i, force)
+                case(1,2)
+                    force(2*i, 1) = 0
+                case(3)
+                    force(2*i, 1) = -p
+                case(4)
+                    force(2*i, 1) = cirlencom(p,node(i,2),node(i,3),cir(2,1),cir(2,2))(2)
+                case(5)
+                    force(2*i, 1) = cirlencom(p,node(i,2),node(i,3),cir(2,2),cir(2,1))(2)
+                case(6)
+                    force(2*i, 1) = cirlencom(-p,node(i,2),node(i,3),cir(1,1),cir(1,2))(2)
+                case default
+                    write(*,*) "未定义载荷类型"
+            end select             
+
     end subroutine load
 
     !创建结点位移列向量和边界条件的子程序
