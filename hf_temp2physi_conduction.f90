@@ -210,10 +210,23 @@ module temp2physi_conduction
     end subroutine assemblestiffness
 
     !创建结点载荷列向量的子程序
-    subroutine load(ele,force)
+    subroutine load(node,force)
         implicit none
-        real, intent(in) ::ele
-        real, intent(in,out) ::force
+        real, intent(in) :: node
+        real, intent(in,out) :: force
+        integer :: nodextype, nodeytype !定义结点x与y方向的边界类型
+        !对结点载荷进行赋值
+        do i = 1 : node_num
+            nodextype = node(i,4)
+            nodeytype = node(i,5)
+            select case(nodextype)
+            !nodextype = 0 : 限制x方向位移，同时删去刚度矩阵对应第2i-1行2i-1列、载荷和位移列向量的第2i-1行
+            !nodextype = 1 : x方向自由，对应载荷列向量第2i-1行设为0
+            !nodextype = 2 : 施加载荷
+            !nodextype = 3 : 圆周类载荷
+                case
+            !nodeytype = 1 : 限制y方向位移，同时删去刚度矩阵对应第2i行2i列、载荷和位移列向量的第2i行
+            !nodetype
     end subroutine load
 
     !创建结点位移列向量和边界条件的子程序
