@@ -5,7 +5,7 @@
 module mathcal
     implicit none
 
-    !定义数与向量的数乘
+    !定义数与一维数组的数乘
     real function multnV(a,V)
         implicit none
         integer :: i
@@ -147,14 +147,18 @@ module temp2physi_conduction
     real, dimension(ele_row) :: poi !定义单元泊松比
     real, dimension(2*node_num,2*node_num) :: k_stiffness = 0 !定义整体刚度矩阵，node_num为结点总数
     real, dimension(2*node_num,3) :: force !定义结点载荷列向量，第一列为结点载荷，第二列为结点x编号，第三列为结点y编号
-    real, dimension(2*node_num,3) :: displacement !定义结点位移列向量,第一列为结点位移，第二列为结点x编号，第三列为结点y编号
+    real, dimension(2*node_num,3) :: displacement
+        !定义结点位移列向量,第一列为结点位移，第二列为结点x编号，第三列为结点y编号
         !example: force = [15.5 1 0] ————X1
         !                 [  0  0 1] ————Y1
         !表示结点1在x方向受载荷15.5,在y方向不受载荷,即p1x=15.5,p1y=0
-    real, dimension(2,2) :: cir !保存曲率圆心坐标
+
+    real, dimension(2,2) :: cir 
+        !保存曲率圆心坐标
         !十字螺旋1/4模型中，其实只有3个圆弧侧，2个对称的正曲率圆弧，1个负曲率圆弧，故cir()可以设为2×2矩阵
         !cir = [cirx1,ciry1] ——————负曲率圆弧的圆心坐标
         !      [ mcir , 0  ] ——————圆心在x轴上的正曲率圆弧圆心坐标，圆心在y轴上的为[0, mcir]
+    
     !初始化 
         forall(i = 1 : node_num)
             force(2*i-1,1) = 0
@@ -288,35 +292,36 @@ module temp2physi_conduction
                         strainmatrix(3,2*w)   = 0.25*(a*formcoff(2*w-1) - b*formcoff(2*w))/J
                     end do
 
-                    !计算应力矩阵stressmatrix
-                    select case(type)
-                    !type = 1:平面应力
-                    !type = 2:平面应变
-                        case(1)
-                            coffA = E(i)/(1-nu(i)**2)
-                            stressmatrix = reshape([1,nu(i),0,nu(i),1,0,0,0,(1-nu(i))/2],[3,3])
-                            stressmatrix = multnM(coffA,stressmatrix)
-                        case(2)
-                            coffA = E(i)/(1+nu(i))/(1-2*nu(i))
-                            stressmatrix = reshape([1-nu(i),nu(i),0,nu(i),1-nu(i),0,0,0,(1-2*nu(i))/2],[3,3])
-                            stressmatrix = multnM(coffA,stressmatrix)
-                        case default
-                            write(*,*) "unknown input"
-                    end select
+                !计算应力矩阵stressmatrix
+                select case(type)
+                !type = 1:平面应力
+                !type = 2:平面应变
+                    case(1)
+                        coffA = E(i)/(1-nu(i)**2)
+                        stressmatrix = reshape([1,nu(i),0,nu(i),1,0,0,0,(1-nu(i))/2],[3,3])
+                        stressmatrix = multnM(coffA,stressmatrix)
+                    case(2)
+                        coffA = E(i)/(1+nu(i))/(1-2*nu(i))
+                        stressmatrix = reshape([1-nu(i),nu(i),0,nu(i),1-nu(i),0,0,0,(1-2*nu(i))/2],[3,3])
+                         stressmatrix = multnM(coffA,stressmatrix)
+                    case default
+                        write(*,*) "unknown input"
+                end select
 
-                    !利用了高斯积分近似，采取了四个样本点计算积分
-                    ele_k_stiffness = ele_k_stiffness + J* matmul(matmul(transpose(strainmatrix),stressmatrix),strainmatrix) 
-                    call thermal_load(strainmatrix,stressmatrix,thermal_stress,J,i,type)                                                                                  
+                !利用高斯积分近似，采取四个样本点计算积分
+                ele_k_stiffness = ele_k_stiffness + J* matmul(matmul(transpose(strainmatrix),stressmatrix),strainmatrix) 
+                call thermal_load(strainmatrix,stressmatrix,thermal_stress,J,i,type) 
+
             end do 
         
             !将该单元刚度矩阵整合到整体刚度矩阵中
             call assemblestiffness(k_stiffness,ele_k_stiffness,ele(i,:))
 
             !将热应力整合到载荷向量中
-                do k = 1 , 4 
-                    force( 2*ele(ele_num,k+1) - 1 , 1 ) = force( 2*ele(ele_num,k+1) - 1 , 1 ) + thermal_stress( 2*k - 1 , 1 )
-                    force( 2*ele(ele_num,k+1) , 1 ) = force( 2*ele(ele_num,k+1) , 1 ) + thermal_stress( 2*k , 1 )
-                end do
+            do k = 1 , 4 
+                force( 2*ele(ele_num,k+1) - 1 , 1 ) = force( 2*ele(ele_num,k+1) - 1 , 1 ) + thermal_stress( 2*k - 1 , 1 )
+                force( 2*ele(ele_num,k+1) , 1 ) = force( 2*ele(ele_num,k+1) , 1 ) + thermal_stress( 2*k , 1 )
+            end do
 
         end do
     end subroutine stiffness
@@ -441,12 +446,12 @@ module temp2physi_conduction
             select case(type)
             !type = 1:平面应力
             !type = 2:平面应变
-            case(1)
-                tempvt = multnV(alpha,tempvt)
-            case(2)
-                tempvt = multnV(alpha*(1+poi(ele_num)),tempvt)
-            case default
-                write(*,*) "unknown input"
+                case(1)
+                    tempvt = multnM(alpha,tempvt)
+                case(2)
+                    tempvt = multnM(alpha*(1+poi(ele_num)),tempvt)
+                case default
+                    write(*,*) "unknown input"
             end select
 
             thermal_stress = thermal_stress + J* matmul(matmul(transpose(B),D),tempvt)
@@ -455,7 +460,7 @@ module temp2physi_conduction
 
     !求解子程序
     subroutine solutionD()
-     !先解出结点非固定坐标的位移向量，最后再把固定位移的结点坐标整合在一起
+        !先解出结点非固定坐标的位移向量，最后再把固定位移的结点坐标整合在一起
         call load(15.5,node,force,displacement,cir)
         implicit none
         integer :: i, tempsize
