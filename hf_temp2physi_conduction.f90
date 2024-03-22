@@ -79,7 +79,7 @@ module mathcal
         integer :: N = size(A,1)
         real, intent(in) :: A
         real, intent(out) :: inv
-        real, dimension(N,N) :: L, U, invL, invU, temp
+        real, dimension(N,N) :: L, U, invL, invU
         integer :: i, j, k
 
         !LU分解
@@ -124,8 +124,7 @@ module mathcal
         end do
 
         !求A的逆
-        temp = matmul(invU, invL)
-        inv = temp
+        inv = matmul(invU, invL)
 
     end
 
@@ -234,7 +233,6 @@ module temp2physi_conduction
         !type为选择平面应力或平面应变的类型
 
         call material(ele_uo2,ele_row,Elmo,poi)
-        call getnodetemp(ele)
         implicit none
         integer, intent(in) :: type
         real, intent(in) :: E(:),nu(:),ele(:,:),node(:,:)
